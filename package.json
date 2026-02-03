@@ -66,6 +66,7 @@
     "init": "npm install && npm run bootstrap",
     "start": "npm run app-dev",
     "app-build": "tauri build",
+    "app-build-portable": "tauri build --config ./crates-tauri/yaak-app/tauri.portable.conf.json",
     "app-dev": "node scripts/run-dev.mjs",
     "migration": "node scripts/create-migration.cjs",
     "build": "npm run --workspaces --if-present build",

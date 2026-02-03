@@ -1,0 +1,120 @@
+name: Build Portable Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 2026.1.0)'
+        required: true
+        default: '0.0.0'
+      arch:
+        description: 'Architecture'
+        required: true
+        default: 'x64'
+        type: choice
+        options:
+          - x64
+          - arm64
+
+jobs:
+  build-portable:
+    name: Build Portable Windows ${{ inputs.arch }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.arch == 'arm64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-portable
+          cache-on-failure: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap
+        run: npm run bootstrap
+        env:
+          YAAK_TARGET_ARCH: ${{ inputs.arch }}
+
+      - name: Replace version
+        run: npm run replace-version
+        env:
+          YAAK_VERSION: ${{ inputs.version }}
+
+      - name: Build portable
+        run: npm run app-build-portable
+        env:
+          YAAK_TARGET_ARCH: ${{ inputs.arch }}
+
+      - name: Find artifacts
+        run: |
+          $artifacts = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -Filter "*.zip"
+          if ($artifacts) {
+            Write-Host "Found: $($artifacts.FullName)"
+            Write-Host "::set-output name=artifact::$($artifacts.FullName)"
+          } else {
+            Write-Host "No ZIP found, listing bundle dir:"
+            Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse | Format-List
+          }
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yaak-portable-windows-${{ inputs.arch }}-${{ inputs.version }}
+          path: ${{ env.artifact || 'src-tauri/target/release/bundle/**/*' }}
+          retention-days: 7
+
+  create-zip:
+    name: Create Portable ZIP
+    needs: build-portable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare portable ZIP
+        run: |
+          cd artifacts
+          ls -la
+          # Find the yaak zip and rename it
+          yaak_zip=$(find . -name "*.zip" | head -1)
+          if [ -n "$yaak_zip" ]; then
+            mv "$yaak_zip" /tmp/yaak-windows.zip
+            cd /tmp
+            mkdir yaak-portable
+            cd yaak-portable
+            unzip -o /tmp/yaak-windows.zip
+            cd ..
+            rm yaak-windows.zip
+            zip -r yaak-portable-${{ inputs.arch }}-${{ inputs.version }}.zip yaak-portable
+            mv yaak-portable-${{ inputs.arch }}-${{ inputs.version }}.zip ..
+            cd ..
+          fi
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: yaak-portable-${{ inputs.arch }}-${{ inputs.version }}.zip
+          path: /tmp/yaak-portable-${{ inputs.arch }}-${{ inputs.version }}.zip
+          retention-days: 30
