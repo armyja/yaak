@@ -56,4 +56,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: yaak-windows-nsis
-          path: crates-tauri/yaak-app/target/release/bundle/nsis/
+          path: target/release/bundle/nsis/
