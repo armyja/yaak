@@ -50,7 +50,7 @@ jobs:
           YAAK_VERSION: ${{ inputs.version }}+offline
 
       - name: Build NSIS
-        run: npm run tauri build -- --bundles nsis --config ./crates-tauri/yaak-app/tauri.release.conf.json
+        run: npm run tauri build -- --bundles nsis --no-sign --config ./crates-tauri/yaak-app/tauri.release.conf.json
 
       - name: Upload NSIS artifact
         uses: actions/upload-artifact@v4
