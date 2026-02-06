@@ -1,7 +1,12 @@
 name: Build Portable Windows NSIS
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v2026.2.0-beta.9)'
+        required: true
+        default: 'v0.0.0'
 
 jobs:
   build-windows:
@@ -42,7 +47,7 @@ jobs:
       - name: Set version
         run: npm run replace-version
         env:
-          YAAK_VERSION: ${{ github.ref_name }}-offline
+          YAAK_VERSION: ${{ inputs.version }}_offline
 
       - name: Build NSIS
         run: npm run tauri build -- --bundles nsis --config ./crates-tauri/yaak-app/tauri.release.conf.json
