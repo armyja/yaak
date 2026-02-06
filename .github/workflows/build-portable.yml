@@ -1,0 +1,54 @@
+name: Build Portable Windows NSIS
+
+on:
+  workflow_dispatch
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout yaakapp/app
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          cache-on-failure: true
+
+      - name: Install trusted-signing-cli
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = "$env:USERPROFILE\trusted-signing"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $url = "https://github.com/Levminer/trusted-signing-cli/releases/download/0.8.0/trusted-signing-cli.exe"
+          $exe = Join-Path $dir "trusted-signing-cli.exe"
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          echo $dir >> $env:GITHUB_PATH
+          & $exe --version
+
+      - run: npm ci
+      - run: npm run bootstrap
+        env:
+          YAAK_TARGET_ARCH: x64
+
+      - name: Set version
+        run: npm run replace-version
+        env:
+          YAAK_VERSION: ${{ github.ref_name }}-offline
+
+      - name: Build NSIS
+        run: npm run tauri build -- --bundles nsis --config ./crates-tauri/yaak-app/tauri.release.conf.json
+
+      - name: Upload NSIS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yaak-windows-nsis
+          path: crates-tauri/yaak-app/target/release/bundle/nsis/
